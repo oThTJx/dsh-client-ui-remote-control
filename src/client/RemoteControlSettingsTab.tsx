@@ -4,6 +4,7 @@ import type {
   ResetIdentitySnapshot,
   RevokeSnapshot,
   SessionsSnapshot,
+  SetRelayUrlSnapshot,
   TestConnectionSnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -22,6 +23,8 @@ export interface RemoteControlSettingsTabInjected {
   resetIdentity: () => Promise<ResetIdentitySnapshot>
   /** One explicit wire round-trip against the relay. */
   testConnection: () => Promise<TestConnectionSnapshot>
+  /** Persist and apply a new relay address; '' selects the embedded local relay. */
+  setRelayUrl: (url: string) => Promise<SetRelayUrlSnapshot>
 }
 
 /** Full component props assembled by the Settings slot renderer. */
@@ -63,22 +66,29 @@ export function RemoteControlSettingsTab({
   revoke,
   resetIdentity,
   testConnection,
+  setRelayUrl,
   t,
 }: RemoteControlSettingsTabProps): ReactNode {
   const [state, setState] = useState<ViewState>({ status: 'loading' })
   const [test, setTest] = useState<TestState>({ status: 'idle' })
+  const [addressDraft, setAddressDraft] = useState('')
 
   const reload = (): void => {
     setState({ status: 'loading' })
     void Promise.all([pairing(), sessions()]).then(
       ([pairingSnapshot, sessionsSnapshot]) => {
         setState({ status: 'ready', pairing: pairingSnapshot, sessions: sessionsSnapshot })
+        setAddressDraft(pairingSnapshot.relayUrl ?? '')
       },
       () => { setState({ status: 'error' }) },
     )
   }
 
   useEffect(reload, [pairing, sessions])
+
+  const onSaveAddress = (): void => {
+    void setRelayUrl(addressDraft.trim()).then(reload, () => { setState({ status: 'error' }) })
+  }
 
   const onTestConnection = (): void => {
     setTest({ status: 'testing' })
@@ -109,6 +119,18 @@ export function RemoteControlSettingsTab({
       ) : null}
       {state.status === 'ready' ? (
         <>
+          <div className={css.addressRow}>
+            <label className={css.addressField}>
+              <span>{t('addressLabel')}</span>
+              <input
+                type="text"
+                value={addressDraft}
+                placeholder={t('addressPlaceholder')}
+                onChange={(event) => { setAddressDraft(event.currentTarget.value) }}
+              />
+            </label>
+            <button type="button" onClick={onSaveAddress}>{t('save')}</button>
+          </div>
           <div className={css.pairingCard} data-status={state.pairing.status}>
             <p className={css.status}>{statusLabel(state.pairing.status, t)}</p>
             {state.pairing.error !== undefined ? <p className={css.errorText}>{state.pairing.error}</p> : null}

@@ -7,6 +7,7 @@ import type {
   ResetIdentitySnapshot,
   RevokeSnapshot,
   SessionsSnapshot,
+  SetRelayUrlSnapshot,
   TestConnectionSnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
 
@@ -17,12 +18,14 @@ function props(overrides?: {
   sessions?: SessionsSnapshot
   confirm?: () => boolean
   testConnection?: () => Promise<TestConnectionSnapshot>
+  setRelayUrl?: (url: string) => Promise<SetRelayUrlSnapshot>
 }): RemoteControlSettingsTabProps {
   const pairing = vi.fn<() => Promise<PairingSnapshot>>()
     .mockResolvedValue(overrides?.pairing ?? {
       status: 'pairing',
       code: '654321',
       expiresAt: 2_000_000,
+      relayUrl: 'ws://relay.example.com',
       phoneRelayUrl: 'ws://relay.example.com',
       qrDataUrl: 'data:image/png;base64,qr',
     })
@@ -33,6 +36,7 @@ function props(overrides?: {
   const revoke = vi.fn<(sessionId: string) => Promise<RevokeSnapshot>>().mockResolvedValue({ revoked: true })
   const resetIdentity = vi.fn<() => Promise<ResetIdentitySnapshot>>().mockResolvedValue({ deviceId: 'fresh-id' })
   const testConnection = vi.fn<() => Promise<TestConnectionSnapshot>>(overrides?.testConnection ?? (async () => ({ ok: true, message: 'relay reachable' })))
+  const setRelayUrl = vi.fn<(url: string) => Promise<SetRelayUrlSnapshot>>(overrides?.setRelayUrl ?? (async () => ({ ok: true })))
   if (overrides?.confirm !== undefined) {
     vi.spyOn(globalThis, 'confirm').mockImplementation(overrides.confirm)
   } else {
@@ -44,6 +48,7 @@ function props(overrides?: {
     revoke,
     resetIdentity,
     testConnection,
+    setRelayUrl,
     t: (key: string) => key,
   } as unknown as RemoteControlSettingsTabProps
 }
@@ -100,5 +105,15 @@ describe('RemoteControlSettingsTab', () => {
     render(<RemoteControlSettingsTab {...p} />)
     fireEvent.click(await screen.findByText('testConnection'))
     expect(await screen.findByText(/relay not connected/)).toBeTruthy()
+  })
+
+  it('saves a new relay address through the injected face', async () => {
+    const p = props()
+    render(<RemoteControlSettingsTab {...p} />)
+    await screen.findByText('654321')
+    const input = screen.getByPlaceholderText('addressPlaceholder') as HTMLInputElement
+    fireEvent.change(input, { target: { value: 'wss://other.example.com' } })
+    fireEvent.click(screen.getByText('save'))
+    expect(p.setRelayUrl).toHaveBeenCalledWith('wss://other.example.com')
   })
 })

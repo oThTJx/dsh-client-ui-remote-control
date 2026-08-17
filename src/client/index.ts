@@ -68,6 +68,13 @@ export function apply(ctx: ClientContext): void {
       }
       return result.value
     },
+    setRelayUrl: async (url: string) => {
+      const result = await remote.setRelayUrl(url)
+      if (!result.ok) {
+        throw new Error(`remoteControl.setRelayUrl failed: ${result.error.code}: ${result.error.message}`)
+      }
+      return result.value
+    },
   })
 
   ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
