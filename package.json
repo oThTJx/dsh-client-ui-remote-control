@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@firefly0621/dsh-client-ui-remote-control",
   "description": "Remote-control pairing tab in Web Plugins settings: QR + code + device management",
   "version": "0.1.0-rc.6",
