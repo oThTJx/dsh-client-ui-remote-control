@@ -23,7 +23,7 @@ const PAIRING: PairingSnapshot = {
   status: 'pairing',
   code: '123456',
   expiresAt: 1_000_000,
-  phoneRelayUrl: 'ws://relay.example.com',
+  relayUrl: 'ws://relay.example.com',
   qrDataUrl: 'data:image/png;base64,qr',
 }
 const SESSIONS: SessionsSnapshot = {
