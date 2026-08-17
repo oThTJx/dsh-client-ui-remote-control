@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { RemoteControlSettingsTab, type RemoteControlSettingsTabProps } from '../src/client/RemoteControlSettingsTab.tsx'
 import type {
+  ConnectionActionSnapshot,
   PairingSnapshot,
   ResetIdentitySnapshot,
   RevokeSnapshot,
@@ -19,6 +20,8 @@ function props(overrides?: {
   confirm?: () => boolean
   testConnection?: () => Promise<TestConnectionSnapshot>
   setRelayUrl?: (url: string) => Promise<SetRelayUrlSnapshot>
+  connect?: () => Promise<ConnectionActionSnapshot>
+  disconnect?: () => Promise<ConnectionActionSnapshot>
 }): RemoteControlSettingsTabProps {
   const pairing = vi.fn<() => Promise<PairingSnapshot>>()
     .mockResolvedValue(overrides?.pairing ?? {
@@ -36,6 +39,8 @@ function props(overrides?: {
   const resetIdentity = vi.fn<() => Promise<ResetIdentitySnapshot>>().mockResolvedValue({ deviceId: 'fresh-id' })
   const testConnection = vi.fn<() => Promise<TestConnectionSnapshot>>(overrides?.testConnection ?? (async () => ({ ok: true, message: 'relay reachable' })))
   const setRelayUrl = vi.fn<(url: string) => Promise<SetRelayUrlSnapshot>>(overrides?.setRelayUrl ?? (async () => ({ ok: true })))
+  const connect = vi.fn<() => Promise<ConnectionActionSnapshot>>(overrides?.connect ?? (async () => ({ ok: true })))
+  const disconnect = vi.fn<() => Promise<ConnectionActionSnapshot>>(overrides?.disconnect ?? (async () => ({ ok: true })))
   if (overrides?.confirm !== undefined) {
     vi.spyOn(globalThis, 'confirm').mockImplementation(overrides.confirm)
   } else {
@@ -43,6 +48,8 @@ function props(overrides?: {
   }
   return {
     pairing,
+    connect,
+    disconnect,
     sessions,
     revoke,
     resetIdentity,
@@ -122,5 +129,20 @@ describe('RemoteControlSettingsTab', () => {
     render(<RemoteControlSettingsTab {...p} />)
     expect(await screen.findByText('654321')).toBeTruthy()
     expect(screen.getByText('devicesEmpty')).toBeTruthy()
+  })
+
+  it('shows a connect button when disconnected and connects through the face', async () => {
+    const p = props({ pairing: { status: 'disconnected', relayUrl: 'ws://relay.example.com' } })
+    render(<RemoteControlSettingsTab {...p} />)
+    fireEvent.click(await screen.findByText('connect'))
+    expect(p.connect).toHaveBeenCalledOnce()
+    expect(screen.queryByText('654321')).toBeNull()
+  })
+
+  it('disconnects through the face when paired', async () => {
+    const p = props()
+    render(<RemoteControlSettingsTab {...p} />)
+    fireEvent.click(await screen.findByText('disconnect'))
+    expect(p.disconnect).toHaveBeenCalledOnce()
   })
 })

@@ -75,6 +75,20 @@ export function apply(ctx: ClientContext): void {
       }
       return result.value
     },
+    connect: async () => {
+      const result = await remote.connect()
+      if (!result.ok) {
+        throw new Error(`remoteControl.connect failed: ${result.error.code}: ${result.error.message}`)
+      }
+      return result.value
+    },
+    disconnect: async () => {
+      const result = await remote.disconnect()
+      if (!result.ok) {
+        throw new Error(`remoteControl.disconnect failed: ${result.error.code}: ${result.error.message}`)
+      }
+      return result.value
+    },
   })
 
   ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({

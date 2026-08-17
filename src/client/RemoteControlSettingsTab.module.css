@@ -92,6 +92,12 @@
   gap: 10px;
 }
 
+.connectionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .addressRow {
   display: flex;
   align-items: flex-end;

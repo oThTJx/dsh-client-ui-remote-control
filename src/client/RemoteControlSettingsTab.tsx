@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type {
+  ConnectionActionSnapshot,
   PairingSnapshot,
   ResetIdentitySnapshot,
   RevokeSnapshot,
@@ -15,6 +16,10 @@ import css from './RemoteControlSettingsTab.module.css'
 export interface RemoteControlSettingsTabInjected {
   /** Current pairing snapshot (QR data URL included when a code is live). */
   pairing: () => Promise<PairingSnapshot>
+  /** Explicitly connect to the configured relay. */
+  connect: () => Promise<ConnectionActionSnapshot>
+  /** Explicitly disconnect and clear the pairing code. */
+  disconnect: () => Promise<ConnectionActionSnapshot>
   /** Bound app sessions of this device. */
   sessions: () => Promise<SessionsSnapshot>
   /** Ask the relay to drop one app session. */
@@ -44,6 +49,7 @@ type TestState =
   | { readonly status: 'done'; readonly result: TestConnectionSnapshot }
 
 const STATUS_KEYS = {
+  disconnected: 'disconnected',
   connecting: 'connecting',
   pairing: 'pairing',
   error: 'pairingError',
@@ -62,6 +68,8 @@ function formatTime(epochMs: number, locale: string): string {
 /** Render the remote-control pairing section: QR, code, and bound devices. */
 export function RemoteControlSettingsTab({
   pairing,
+  connect,
+  disconnect,
   sessions,
   revoke,
   resetIdentity,
@@ -95,6 +103,14 @@ export function RemoteControlSettingsTab({
 
   const onSaveAddress = (): void => {
     void setRelayUrl(addressDraft.trim()).then(reload, () => { setState({ status: 'error' }) })
+  }
+
+  const onConnect = (): void => {
+    void connect().then(reload, () => { setState({ status: 'error' }) })
+  }
+
+  const onDisconnect = (): void => {
+    void disconnect().then(reload, () => { setState({ status: 'error' }) })
   }
 
   const onTestConnection = (): void => {
@@ -141,6 +157,13 @@ export function RemoteControlSettingsTab({
           <div className={css.pairingCard} data-status={state.pairing.status}>
             <p className={css.status}>{statusLabel(state.pairing.status, t)}</p>
             {state.pairing.error !== undefined ? <p className={css.errorText}>{state.pairing.error}</p> : null}
+            <div className={css.connectionRow}>
+              {state.pairing.status === 'disconnected' || state.pairing.status === 'error' ? (
+                <button type="button" onClick={onConnect}>{t('connect')}</button>
+              ) : (
+                <button type="button" onClick={onDisconnect}>{t('disconnect')}</button>
+              )}
+            </div>
             {state.pairing.qrDataUrl !== undefined ? (
               <img
                 className={css.qr}
