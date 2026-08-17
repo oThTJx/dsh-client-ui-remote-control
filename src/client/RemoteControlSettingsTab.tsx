@@ -75,13 +75,20 @@ export function RemoteControlSettingsTab({
 
   const reload = (): void => {
     setState({ status: 'loading' })
-    void Promise.all([pairing(), sessions()]).then(
-      ([pairingSnapshot, sessionsSnapshot]) => {
-        setState({ status: 'ready', pairing: pairingSnapshot, sessions: sessionsSnapshot })
-        setAddressDraft(pairingSnapshot.relayUrl ?? '')
-      },
-      () => { setState({ status: 'error' }) },
-    )
+    // A failing sessions read (e.g. the relay is unreachable) must not hide the
+    // pairing status and address config; the device list degrades to empty.
+    void Promise.allSettled([pairing(), sessions()]).then(([pairingResult, sessionsResult]) => {
+      if (pairingResult.status === 'rejected') {
+        setState({ status: 'error' })
+        return
+      }
+      setState({
+        status: 'ready',
+        pairing: pairingResult.value,
+        sessions: sessionsResult.status === 'fulfilled' ? sessionsResult.value : { sessions: [] },
+      })
+      setAddressDraft(pairingResult.value.relayUrl ?? '')
+    })
   }
 
   useEffect(reload, [pairing, sessions])

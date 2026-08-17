@@ -115,4 +115,12 @@ describe('RemoteControlSettingsTab', () => {
     fireEvent.click(screen.getByText('save'))
     expect(p.setRelayUrl).toHaveBeenCalledWith('wss://other.example.com')
   })
+
+  it('still shows pairing status when the device list read fails', async () => {
+    const p = props()
+    ;(p.sessions as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('relay not connected'))
+    render(<RemoteControlSettingsTab {...p} />)
+    expect(await screen.findByText('654321')).toBeTruthy()
+    expect(screen.getByText('devicesEmpty')).toBeTruthy()
+  })
 })
