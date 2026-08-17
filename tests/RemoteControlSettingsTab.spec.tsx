@@ -7,6 +7,7 @@ import type {
   ResetIdentitySnapshot,
   RevokeSnapshot,
   SessionsSnapshot,
+  TestConnectionSnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
 
 afterEach(cleanup)
@@ -15,6 +16,7 @@ function props(overrides?: {
   pairing?: PairingSnapshot
   sessions?: SessionsSnapshot
   confirm?: () => boolean
+  testConnection?: () => Promise<TestConnectionSnapshot>
 }): RemoteControlSettingsTabProps {
   const pairing = vi.fn<() => Promise<PairingSnapshot>>()
     .mockResolvedValue(overrides?.pairing ?? {
@@ -30,6 +32,7 @@ function props(overrides?: {
     })
   const revoke = vi.fn<(sessionId: string) => Promise<RevokeSnapshot>>().mockResolvedValue({ revoked: true })
   const resetIdentity = vi.fn<() => Promise<ResetIdentitySnapshot>>().mockResolvedValue({ deviceId: 'fresh-id' })
+  const testConnection = vi.fn<() => Promise<TestConnectionSnapshot>>(overrides?.testConnection ?? (async () => ({ ok: true, message: 'relay reachable' })))
   if (overrides?.confirm !== undefined) {
     vi.spyOn(globalThis, 'confirm').mockImplementation(overrides.confirm)
   } else {
@@ -40,6 +43,7 @@ function props(overrides?: {
     sessions,
     revoke,
     resetIdentity,
+    testConnection,
     t: (key: string) => key,
   } as unknown as RemoteControlSettingsTabProps
 }
@@ -79,5 +83,22 @@ describe('RemoteControlSettingsTab', () => {
     render(<RemoteControlSettingsTab {...p} />)
     fireEvent.click(await screen.findByText('reset'))
     expect(p.resetIdentity).toHaveBeenCalledOnce()
+  })
+
+  it('runs the connection test and reports the result', async () => {
+    const p = props()
+    render(<RemoteControlSettingsTab {...p} />)
+    fireEvent.click(await screen.findByText('testConnection'))
+    expect(p.testConnection).toHaveBeenCalledOnce()
+    expect(await screen.findByText(/testOk/)).toBeTruthy()
+  })
+
+  it('reports a failed connection test with the relay message', async () => {
+    const p = props({
+      testConnection: async () => ({ ok: false, message: 'relay not connected' }),
+    })
+    render(<RemoteControlSettingsTab {...p} />)
+    fireEvent.click(await screen.findByText('testConnection'))
+    expect(await screen.findByText(/relay not connected/)).toBeTruthy()
   })
 })

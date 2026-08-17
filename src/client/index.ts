@@ -61,6 +61,13 @@ export function apply(ctx: ClientContext): void {
       }
       return result.value
     },
+    testConnection: async () => {
+      const result = await remote.testConnection()
+      if (!result.ok) {
+        throw new Error(`remoteControl.testConnection failed: ${result.error.code}: ${result.error.message}`)
+      }
+      return result.value
+    },
   })
 
   ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({

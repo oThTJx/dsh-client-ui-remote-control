@@ -4,6 +4,7 @@ import type {
   ResetIdentitySnapshot,
   RevokeSnapshot,
   SessionsSnapshot,
+  TestConnectionSnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteControlLocaleKey } from './locales.ts'
@@ -19,6 +20,8 @@ export interface RemoteControlSettingsTabInjected {
   revoke: (sessionId: string) => Promise<RevokeSnapshot>
   /** Regenerate the device identity and drop every bound session. */
   resetIdentity: () => Promise<ResetIdentitySnapshot>
+  /** One explicit wire round-trip against the relay. */
+  testConnection: () => Promise<TestConnectionSnapshot>
 }
 
 /** Full component props assembled by the Settings slot renderer. */
@@ -31,6 +34,11 @@ type ViewState =
   | { readonly status: 'loading' }
   | { readonly status: 'error' }
   | { readonly status: 'ready'; readonly pairing: PairingSnapshot; readonly sessions: SessionsSnapshot }
+
+type TestState =
+  | { readonly status: 'idle' }
+  | { readonly status: 'testing' }
+  | { readonly status: 'done'; readonly result: TestConnectionSnapshot }
 
 const STATUS_KEYS = {
   connecting: 'connecting',
@@ -54,9 +62,11 @@ export function RemoteControlSettingsTab({
   sessions,
   revoke,
   resetIdentity,
+  testConnection,
   t,
 }: RemoteControlSettingsTabProps): ReactNode {
   const [state, setState] = useState<ViewState>({ status: 'loading' })
+  const [test, setTest] = useState<TestState>({ status: 'idle' })
 
   const reload = (): void => {
     setState({ status: 'loading' })
@@ -69,6 +79,14 @@ export function RemoteControlSettingsTab({
   }
 
   useEffect(reload, [pairing, sessions])
+
+  const onTestConnection = (): void => {
+    setTest({ status: 'testing' })
+    void testConnection().then(
+      (result) => { setTest({ status: 'done', result }) },
+      () => { setTest({ status: 'done', result: { ok: false, message: t('error') } }) },
+    )
+  }
 
   const onRevoke = (sessionId: string): void => {
     if (!globalThis.confirm(t('revokeConfirm'))) return
@@ -113,6 +131,16 @@ export function RemoteControlSettingsTab({
             {state.pairing.phoneRelayUrl !== undefined ? (
               <p className={css.meta} data-remote-url>{t('phoneUrlLabel')}: {state.pairing.phoneRelayUrl}</p>
             ) : null}
+            <div className={css.testRow}>
+              <button type="button" onClick={onTestConnection} disabled={test.status === 'testing'}>
+                {test.status === 'testing' ? t('testing') : t('testConnection')}
+              </button>
+              {test.status === 'done' ? (
+                <span className={test.result.ok ? css.testOk : css.testFail} data-test-result={test.result.ok ? 'ok' : 'fail'}>
+                  {test.result.ok ? t('testOk') : t('testFail')}: {test.result.message}
+                </span>
+              ) : null}
+            </div>
             <button type="button" onClick={reload}>{t('refresh')}</button>
           </div>
           <div className={css.devices}>

@@ -86,6 +86,24 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+.testRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.testOk {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.testFail {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
 .devices {
   display: flex;
   flex-direction: column;
