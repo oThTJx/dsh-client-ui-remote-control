@@ -26,7 +26,6 @@ function props(overrides?: {
       code: '654321',
       expiresAt: 2_000_000,
       relayUrl: 'ws://relay.example.com',
-      phoneRelayUrl: 'ws://relay.example.com',
       qrDataUrl: 'data:image/png;base64,qr',
     })
   const sessions = vi.fn<() => Promise<SessionsSnapshot>>()

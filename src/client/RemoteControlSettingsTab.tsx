@@ -150,8 +150,8 @@ export function RemoteControlSettingsTab({
             {state.pairing.expiresAt !== undefined ? (
               <p className={css.meta}>{t('codeExpires')} {formatTime(state.pairing.expiresAt, 'zh-CN')}</p>
             ) : null}
-            {state.pairing.phoneRelayUrl !== undefined ? (
-              <p className={css.meta} data-remote-url>{t('phoneUrlLabel')}: {state.pairing.phoneRelayUrl}</p>
+            {state.pairing.relayUrl !== undefined ? (
+              <p className={css.meta} data-remote-url>{t('phoneUrlLabel')}: {state.pairing.relayUrl}</p>
             ) : null}
             <div className={css.testRow}>
               <button type="button" onClick={onTestConnection} disabled={test.status === 'testing'}>
