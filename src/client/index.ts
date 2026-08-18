@@ -37,7 +37,10 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-remote-control: dictionaries')
 
   const t = ctx.locale.bind(NS)
-  const remote = ctx.remote.remoteControl
+  // The namespace is mounted by this apply, so it cannot be an inject
+  // dependency (the fiber would wait for its own apply); read it from the
+  // registry once the mount above settles.
+  const remote = ctx.get('remote.remoteControl') as ClientContext['remote']['remoteControl']
 
   const injected = (): RemoteControlSettingsTabInjected => ({
     pairing: async () => {
