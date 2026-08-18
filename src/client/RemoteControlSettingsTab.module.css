@@ -7,6 +7,69 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  margin-top: 2px;
+}
+
+.tab {
+  position: relative;
+  border: 0;
+  padding: 7px 1px 9px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.tab:hover,
+.tab[data-active='true'] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.tab[data-active='true']::after,
+.tab:focus-visible::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--dsw-alias-label-primary);
+  content: '';
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.panel {
+  min-width: 0;
+  padding-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The class rule above would beat the UA [hidden] rule; restore hidden semantics. */
+.panel[hidden] {
+  display: none;
+}
+
 .status {
   margin: 0;
   font-size: 13px;
@@ -86,18 +149,6 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.testRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.connectionRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .addressRow {
   display: flex;
   align-items: flex-end;
@@ -119,8 +170,9 @@
 }
 
 .addressField input {
+  box-sizing: border-box;
   width: 100%;
-  height: 32px;
+  height: 36px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 6px;
   padding: 0 10px;
@@ -135,29 +187,18 @@
   border-color: var(--dsw-alias-state-business-primary);
 }
 
-.testOk {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-success-primary);
-}
-
-.testFail {
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-state-error-primary);
+/* The shared Button primitive is a capsule; the address input is a rounded
+   rectangle — match the pair's corner, height, and type size. */
+.connectButton {
+  height: 36px;
+  border-radius: 6px;
+  font-size: 13px;
 }
 
 .devices {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.devices h3 {
-  margin: 0;
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 600;
 }
 
 .deviceList {

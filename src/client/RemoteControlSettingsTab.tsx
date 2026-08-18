@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type {
   ConnectionActionSnapshot,
   PairingSnapshot,
@@ -6,8 +6,8 @@ import type {
   RevokeSnapshot,
   SessionsSnapshot,
   SetRelayUrlSnapshot,
-  TestConnectionSnapshot,
 } from '@firefly0621/dsh-remote-control/types'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteControlLocaleKey } from './locales.ts'
 import css from './RemoteControlSettingsTab.module.css'
@@ -26,15 +26,13 @@ export interface RemoteControlSettingsTabInjected {
   revoke: (sessionId: string) => Promise<RevokeSnapshot>
   /** Regenerate the device identity and drop every bound session. */
   resetIdentity: () => Promise<ResetIdentitySnapshot>
-  /** One explicit wire round-trip against the relay. */
-  testConnection: () => Promise<TestConnectionSnapshot>
   /** Persist and apply a new relay address; '' selects the embedded local relay. */
   setRelayUrl: (url: string) => Promise<SetRelayUrlSnapshot>
 }
 
 /** Full component props assembled by the Settings slot renderer. */
 export type RemoteControlSettingsTabProps =
-  PropsRuntime<'settings.plugins.tab'>
+  PropsRuntime<'settings.section'>
   & PropsLocale<'settings.remoteControl'>
   & InjectFace<RemoteControlSettingsTabInjected>
 
@@ -43,10 +41,11 @@ type ViewState =
   | { readonly status: 'error' }
   | { readonly status: 'ready'; readonly pairing: PairingSnapshot; readonly sessions: SessionsSnapshot }
 
-type TestState =
-  | { readonly status: 'idle' }
-  | { readonly status: 'testing' }
-  | { readonly status: 'done'; readonly result: TestConnectionSnapshot }
+/** One page tab projected from the component-local tab list. */
+interface PageTab {
+  readonly id: 'pairing' | 'devices'
+  readonly label: string
+}
 
 const STATUS_KEYS = {
   disconnected: 'disconnected',
@@ -65,7 +64,7 @@ function formatTime(epochMs: number, locale: string): string {
   return new Date(epochMs).toLocaleString(locale)
 }
 
-/** Render the remote-control pairing section: QR, code, and bound devices. */
+/** Render the remote-control pairing page: pairing tab + paired-devices tab. */
 export function RemoteControlSettingsTab({
   pairing,
   connect,
@@ -73,13 +72,18 @@ export function RemoteControlSettingsTab({
   sessions,
   revoke,
   resetIdentity,
-  testConnection,
   setRelayUrl,
   t,
 }: RemoteControlSettingsTabProps): ReactNode {
   const [state, setState] = useState<ViewState>({ status: 'loading' })
-  const [test, setTest] = useState<TestState>({ status: 'idle' })
   const [addressDraft, setAddressDraft] = useState('')
+  const [activeTab, setActiveTab] = useState<PageTab['id']>('pairing')
+  const tabsId = useId()
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const tabs: readonly PageTab[] = [
+    { id: 'pairing', label: t('pairingTab') },
+    { id: 'devices', label: t('devicesTab') },
+  ]
 
   const reload = (): void => {
     setState({ status: 'loading' })
@@ -101,24 +105,14 @@ export function RemoteControlSettingsTab({
 
   useEffect(reload, [pairing, sessions])
 
-  const onSaveAddress = (): void => {
-    void setRelayUrl(addressDraft.trim()).then(reload, () => { setState({ status: 'error' }) })
-  }
-
+  // The one connection control: persisting the draft address first (the host
+  // reconnects automatically when already active), then dialing out.
   const onConnect = (): void => {
-    void connect().then(reload, () => { setState({ status: 'error' }) })
+    void setRelayUrl(addressDraft.trim()).then(connect).then(reload, () => { setState({ status: 'error' }) })
   }
 
   const onDisconnect = (): void => {
     void disconnect().then(reload, () => { setState({ status: 'error' }) })
-  }
-
-  const onTestConnection = (): void => {
-    setTest({ status: 'testing' })
-    void testConnection().then(
-      (result) => { setTest({ status: 'done', result }) },
-      () => { setTest({ status: 'done', result: { ok: false, message: t('error') } }) },
-    )
   }
 
   const onRevoke = (sessionId: string): void => {
@@ -131,8 +125,25 @@ export function RemoteControlSettingsTab({
     void resetIdentity().then(reload, () => { setState({ status: 'error' }) })
   }
 
+  const onTabKeyDown = (index: number) => (event: KeyboardEvent<HTMLButtonElement>): void => {
+    let nextIndex: number
+    switch (event.key) {
+      case 'ArrowRight': nextIndex = (index + 1) % tabs.length; break
+      case 'ArrowLeft': nextIndex = (index - 1 + tabs.length) % tabs.length; break
+      case 'Home': nextIndex = 0; break
+      case 'End': nextIndex = tabs.length - 1; break
+      default: return
+    }
+    event.preventDefault()
+    const nextTab = tabs[nextIndex] as PageTab
+    const nextTabButton = tabRefs.current[nextIndex] as HTMLButtonElement
+    setActiveTab(nextTab.id)
+    nextTabButton.focus()
+  }
+
   return (
     <div className={css.section} aria-busy={state.status === 'loading'}>
+      <h2 className={css.title}>{t('title')}</h2>
       {state.status === 'loading' ? <p className={css.status}>{t('loading')}</p> : null}
       {state.status === 'error' ? (
         <div className={css.failure}>
@@ -142,82 +153,108 @@ export function RemoteControlSettingsTab({
       ) : null}
       {state.status === 'ready' ? (
         <>
-          <div className={css.addressRow}>
-            <label className={css.addressField}>
-              <span>{t('addressLabel')}</span>
-              <input
-                type="text"
-                value={addressDraft}
-                placeholder={t('addressPlaceholder')}
-                onChange={(event) => { setAddressDraft(event.currentTarget.value) }}
-              />
-            </label>
-            <button type="button" onClick={onSaveAddress}>{t('save')}</button>
+          <div className={css.tabs} role="tablist" aria-label={t('title')}>
+            {tabs.map((tab, index) => {
+              const selected = tab.id === activeTab
+              return (
+                <button
+                  key={tab.id}
+                  ref={(element) => { tabRefs.current[index] = element }}
+                  id={`${tabsId}-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  className={css.tab}
+                  aria-selected={selected}
+                  aria-controls={`${tabsId}-panel-${tab.id}`}
+                  data-active={selected ? 'true' : undefined}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => { setActiveTab(tab.id) }}
+                  onKeyDown={onTabKeyDown(index)}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
-          <div className={css.pairingCard} data-status={state.pairing.status}>
-            <p className={css.status}>{statusLabel(state.pairing.status, t)}</p>
-            {state.pairing.error !== undefined ? <p className={css.errorText}>{state.pairing.error}</p> : null}
-            <div className={css.connectionRow}>
+          {/* Both panels stay mounted so the relay-address draft and the
+              connection-test result survive tab switches. */}
+          <div
+            id={`${tabsId}-panel-pairing`}
+            className={css.panel}
+            role="tabpanel"
+            aria-labelledby={`${tabsId}-tab-pairing`}
+            hidden={activeTab !== 'pairing'}
+          >
+            <div className={css.addressRow}>
+              <label className={css.addressField}>
+                <span>{t('addressLabel')}</span>
+                <input
+                  type="text"
+                  value={addressDraft}
+                  placeholder={t('addressPlaceholder')}
+                  onChange={(event) => { setAddressDraft(event.currentTarget.value) }}
+                />
+              </label>
               {state.pairing.status === 'disconnected' || state.pairing.status === 'error' ? (
-                <button type="button" onClick={onConnect}>{t('connect')}</button>
+                <Button variant="primary" className={css.connectButton} onClick={onConnect}>{t('connect')}</Button>
               ) : (
-                <button type="button" onClick={onDisconnect}>{t('disconnect')}</button>
+                <Button variant="outline" className={css.connectButton} onClick={onDisconnect}>{t('disconnect')}</Button>
               )}
             </div>
-            {state.pairing.qrDataUrl !== undefined ? (
-              <img
-                className={css.qr}
-                src={state.pairing.qrDataUrl}
-                alt={t('qrAlt')}
-                width={180}
-                height={180}
-                data-remote-qr
-              />
-            ) : null}
-            {state.pairing.code !== undefined ? (
-              <p className={css.code} data-remote-code>{state.pairing.code}</p>
-            ) : null}
-            {state.pairing.expiresAt !== undefined ? (
-              <p className={css.meta}>{t('codeExpires')} {formatTime(state.pairing.expiresAt, 'zh-CN')}</p>
-            ) : null}
-            {state.pairing.relayUrl !== undefined ? (
-              <p className={css.meta} data-remote-url>{t('phoneUrlLabel')}: {state.pairing.relayUrl}</p>
-            ) : null}
-            <div className={css.testRow}>
-              <button type="button" onClick={onTestConnection} disabled={test.status === 'testing'}>
-                {test.status === 'testing' ? t('testing') : t('testConnection')}
-              </button>
-              {test.status === 'done' ? (
-                <span className={test.result.ok ? css.testOk : css.testFail} data-test-result={test.result.ok ? 'ok' : 'fail'}>
-                  {test.result.ok ? t('testOk') : t('testFail')}: {test.result.message}
-                </span>
+            <div className={css.pairingCard} data-status={state.pairing.status}>
+              <p className={css.status}>{statusLabel(state.pairing.status, t)}</p>
+              {state.pairing.error !== undefined ? <p className={css.errorText}>{state.pairing.error}</p> : null}
+              {state.pairing.qrDataUrl !== undefined ? (
+                <img
+                  className={css.qr}
+                  src={state.pairing.qrDataUrl}
+                  alt={t('qrAlt')}
+                  width={180}
+                  height={180}
+                  data-remote-qr
+                />
+              ) : null}
+              {state.pairing.code !== undefined ? (
+                <p className={css.code} data-remote-code>{state.pairing.code}</p>
+              ) : null}
+              {state.pairing.expiresAt !== undefined ? (
+                <p className={css.meta}>{t('codeExpires')} {formatTime(state.pairing.expiresAt, 'zh-CN')}</p>
+              ) : null}
+              {state.pairing.status === 'pairing' ? (
+                <button type="button" onClick={reload}>{t('refresh')}</button>
               ) : null}
             </div>
-            <button type="button" onClick={reload}>{t('refresh')}</button>
           </div>
-          <div className={css.devices}>
-            <h3>{t('devices')}</h3>
-            {state.sessions.sessions.length === 0 ? <p className={css.status}>{t('devicesEmpty')}</p> : null}
-            {state.sessions.sessions.length > 0 ? (
-              <ul className={css.deviceList}>
-                {state.sessions.sessions.map(session => (
-                  <li className={css.deviceRow} key={session.sessionId}>
-                    <span data-device-name>{session.deviceName}</span>
-                    <span className={css.meta}>
-                      {t('deviceSince')} {formatTime(session.createdAt, 'zh-CN')}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => { onRevoke(session.sessionId) }}
-                      aria-label={t('revoke')}
-                    >
-                      {t('revoke')}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <button type="button" className={css.reset} onClick={onReset}>{t('reset')}</button>
+          <div
+            id={`${tabsId}-panel-devices`}
+            className={css.panel}
+            role="tabpanel"
+            aria-labelledby={`${tabsId}-tab-devices`}
+            hidden={activeTab !== 'devices'}
+          >
+            <div className={css.devices}>
+              <button type="button" className={css.reset} onClick={onReset}>{t('reset')}</button>
+              {state.sessions.sessions.length === 0 ? <p className={css.status}>{t('devicesEmpty')}</p> : null}
+              {state.sessions.sessions.length > 0 ? (
+                <ul className={css.deviceList}>
+                  {state.sessions.sessions.map(session => (
+                    <li className={css.deviceRow} key={session.sessionId}>
+                      <span data-device-name>{session.deviceName}</span>
+                      <span className={css.meta}>
+                        {t('deviceSince')} {formatTime(session.createdAt, 'zh-CN')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { onRevoke(session.sessionId) }}
+                        aria-label={t('revoke')}
+                      >
+                        {t('revoke')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           </div>
         </>
       ) : null}

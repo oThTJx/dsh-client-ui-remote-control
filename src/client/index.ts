@@ -1,4 +1,4 @@
-/** Remote-control pairing tab registered into Web Plugins settings. */
+/** Remote-control pairing section registered into the Web settings nav. */
 
 import remoteControlRemote from '@firefly0621/dsh-remote-control/remote'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -27,8 +27,8 @@ export const NS = 'settings.remoteControl'
 export const inject = ['slots', 'locale', 'remote']
 
 /**
- * Mount the plugin's own Remote namespace and contribute the lazy pairing tab
- * to the Plugins settings section. The namespace mounts here rather than in
+ * Mount the plugin's own Remote namespace and contribute the lazy pairing
+ * section to the Web settings nav. The namespace mounts here rather than in
  * the api-remotes assembly so the browser half works on every dsh family
  * version without the official package depending on this plugin.
  */
@@ -71,13 +71,6 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       }
       return result.value
     },
-    testConnection: async () => {
-      const result = await remote.testConnection()
-      if (!result.ok) {
-        throw new Error(`remoteControl.testConnection failed: ${result.error.code}: ${result.error.message}`)
-      }
-      return result.value
-    },
     setRelayUrl: async (url: string) => {
       const result = await remote.setRelayUrl(url)
       if (!result.ok) {
@@ -101,10 +94,10 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     },
   })
 
-  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
-    name: 'settings.plugins.tab',
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
     id: 'remote',
-    order: 20,
+    order: 16,
     label: () => t('tab'),
     locale: NS,
     inject: injected,

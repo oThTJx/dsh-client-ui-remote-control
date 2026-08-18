@@ -61,7 +61,7 @@ async function bench() {
 function declare(slots: SlotRegistry): () => void {
   return slots.register({
     name: 'root',
-    children: { 'settings.plugins.tab': { kind: 'list', scope: 'root' } },
+    children: { 'settings.section': { kind: 'list', scope: 'root' } },
   } as never, () => null)
 }
 
@@ -70,14 +70,14 @@ describe('ui-remote-control browser plugin', () => {
     expect(inject).toEqual(['slots', 'locale', 'remote'])
   })
 
-  it('registers a localized tab without reading the Remote eagerly', async () => {
+  it('registers a localized section without reading the Remote eagerly', async () => {
     const b = await bench()
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
 
-    const entry = b.slots.entries('settings.plugins.tab')[0]!
+    const entry = b.slots.entries('settings.section')[0]!
     expect(entry.component).toBe(RemoteControlSettingsTab)
-    expect(entry.options).toMatchObject({ id: 'remote', order: 20 })
+    expect(entry.options).toMatchObject({ id: 'remote', order: 16 })
     expect(entry.locale).toBe(NS)
     expect(resolveSlotLabel(entry.options.label)).toBe('远程控制')
     expect(b.pairing).not.toHaveBeenCalled()

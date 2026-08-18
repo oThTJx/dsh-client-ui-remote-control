@@ -9,7 +9,6 @@ import type {
   RevokeSnapshot,
   SessionsSnapshot,
   SetRelayUrlSnapshot,
-  TestConnectionSnapshot,
 } from '@firefly0621/dsh-remote-control/types'
 
 afterEach(cleanup)
@@ -18,7 +17,6 @@ function props(overrides?: {
   pairing?: PairingSnapshot
   sessions?: SessionsSnapshot
   confirm?: () => boolean
-  testConnection?: () => Promise<TestConnectionSnapshot>
   setRelayUrl?: (url: string) => Promise<SetRelayUrlSnapshot>
   connect?: () => Promise<ConnectionActionSnapshot>
   disconnect?: () => Promise<ConnectionActionSnapshot>
@@ -37,7 +35,6 @@ function props(overrides?: {
     })
   const revoke = vi.fn<(sessionId: string) => Promise<RevokeSnapshot>>().mockResolvedValue({ revoked: true })
   const resetIdentity = vi.fn<() => Promise<ResetIdentitySnapshot>>().mockResolvedValue({ deviceId: 'fresh-id' })
-  const testConnection = vi.fn<() => Promise<TestConnectionSnapshot>>(overrides?.testConnection ?? (async () => ({ ok: true, message: 'relay reachable' })))
   const setRelayUrl = vi.fn<(url: string) => Promise<SetRelayUrlSnapshot>>(overrides?.setRelayUrl ?? (async () => ({ ok: true })))
   const connect = vi.fn<() => Promise<ConnectionActionSnapshot>>(overrides?.connect ?? (async () => ({ ok: true })))
   const disconnect = vi.fn<() => Promise<ConnectionActionSnapshot>>(overrides?.disconnect ?? (async () => ({ ok: true })))
@@ -53,19 +50,19 @@ function props(overrides?: {
     sessions,
     revoke,
     resetIdentity,
-    testConnection,
     setRelayUrl,
     t: (key: string) => key,
   } as unknown as RemoteControlSettingsTabProps
 }
 
 describe('RemoteControlSettingsTab', () => {
-  it('renders the pairing code, QR, and bound devices', async () => {
+  it('renders the pairing code, QR, and bound devices across the two tabs', async () => {
     render(<RemoteControlSettingsTab {...props()} />)
     expect(await screen.findByText('654321')).toBeTruthy()
     expect(screen.getByAltText('qrAlt')).toBeTruthy()
+    expect((screen.getByPlaceholderText('addressPlaceholder') as HTMLInputElement).value).toBe('ws://relay.example.com')
+    fireEvent.click(screen.getByText('devicesTab'))
     expect(await screen.findByText('my-phone')).toBeTruthy()
-    expect(screen.getByText(/ws:\/\/relay\.example\.com/)).toBeTruthy()
   })
 
   it('shows an error state when the Remote read fails and recovers via retry', async () => {
@@ -85,6 +82,8 @@ describe('RemoteControlSettingsTab', () => {
   it('revokes a session through the injected face', async () => {
     const p = props()
     render(<RemoteControlSettingsTab {...p} />)
+    await screen.findByText('654321')
+    fireEvent.click(screen.getByText('devicesTab'))
     fireEvent.click(await screen.findByLabelText('revoke'))
     expect(p.revoke).toHaveBeenCalledWith('token-1')
   })
@@ -92,35 +91,21 @@ describe('RemoteControlSettingsTab', () => {
   it('resets the device identity through the injected face', async () => {
     const p = props()
     render(<RemoteControlSettingsTab {...p} />)
+    await screen.findByText('654321')
+    fireEvent.click(screen.getByText('devicesTab'))
     fireEvent.click(await screen.findByText('reset'))
     expect(p.resetIdentity).toHaveBeenCalledOnce()
   })
 
-  it('runs the connection test and reports the result', async () => {
-    const p = props()
+  it('persists the draft relay address and then connects', async () => {
+    const p = props({ pairing: { status: 'disconnected', relayUrl: 'ws://relay.example.com' } })
     render(<RemoteControlSettingsTab {...p} />)
-    fireEvent.click(await screen.findByText('testConnection'))
-    expect(p.testConnection).toHaveBeenCalledOnce()
-    expect(await screen.findByText(/testOk/)).toBeTruthy()
-  })
-
-  it('reports a failed connection test with the relay message', async () => {
-    const p = props({
-      testConnection: async () => ({ ok: false, message: 'relay not connected' }),
-    })
-    render(<RemoteControlSettingsTab {...p} />)
-    fireEvent.click(await screen.findByText('testConnection'))
-    expect(await screen.findByText(/relay not connected/)).toBeTruthy()
-  })
-
-  it('saves a new relay address through the injected face', async () => {
-    const p = props()
-    render(<RemoteControlSettingsTab {...p} />)
-    await screen.findByText('654321')
+    await screen.findByText('disconnected')
     const input = screen.getByPlaceholderText('addressPlaceholder') as HTMLInputElement
     fireEvent.change(input, { target: { value: 'wss://other.example.com' } })
-    fireEvent.click(screen.getByText('save'))
+    fireEvent.click(screen.getByText('connect'))
     expect(p.setRelayUrl).toHaveBeenCalledWith('wss://other.example.com')
+    await vi.waitFor(() => { expect(p.connect).toHaveBeenCalledOnce() })
   })
 
   it('still shows pairing status when the device list read fails', async () => {
@@ -128,6 +113,7 @@ describe('RemoteControlSettingsTab', () => {
     ;(p.sessions as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('relay not connected'))
     render(<RemoteControlSettingsTab {...p} />)
     expect(await screen.findByText('654321')).toBeTruthy()
+    fireEvent.click(screen.getByText('devicesTab'))
     expect(screen.getByText('devicesEmpty')).toBeTruthy()
   })
 
@@ -135,7 +121,8 @@ describe('RemoteControlSettingsTab', () => {
     const p = props({ pairing: { status: 'disconnected', relayUrl: 'ws://relay.example.com' } })
     render(<RemoteControlSettingsTab {...p} />)
     fireEvent.click(await screen.findByText('connect'))
-    expect(p.connect).toHaveBeenCalledOnce()
+    expect(p.setRelayUrl).toHaveBeenCalledWith('ws://relay.example.com')
+    await vi.waitFor(() => { expect(p.connect).toHaveBeenCalledOnce() })
     expect(screen.queryByText('654321')).toBeNull()
   })
 
