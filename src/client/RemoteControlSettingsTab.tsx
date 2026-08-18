@@ -7,7 +7,7 @@ import type {
   SessionsSnapshot,
   SetRelayUrlSnapshot,
   TestConnectionSnapshot,
-} from '@deepseek-ai/dsh-api-remotes/client'
+} from '@firefly0621/dsh-remote-control/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteControlLocaleKey } from './locales.ts'
 import css from './RemoteControlSettingsTab.module.css'

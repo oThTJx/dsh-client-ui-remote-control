@@ -10,7 +10,7 @@ import type {
   SessionsSnapshot,
   SetRelayUrlSnapshot,
   TestConnectionSnapshot,
-} from '@deepseek-ai/dsh-api-remotes/client'
+} from '@firefly0621/dsh-remote-control/types'
 
 afterEach(cleanup)
 

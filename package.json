@@ -1,7 +1,7 @@
 {
   "name": "@firefly0621/dsh-client-ui-remote-control",
   "description": "Remote-control pairing tab in Web Plugins settings: QR + code + device management",
-  "version": "0.1.0-rc.9",
+  "version": "0.1.0-rc.10",
   "publishConfig": {
     "access": "public"
   },
@@ -31,6 +31,7 @@
   "dsh": {
     "client": {
       "inject": [
+        "@firefly0621/dsh-remote-control",
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-settings",
@@ -44,6 +45,9 @@
     "watch": "tsdown --watch"
   },
   "license": "MIT",
+  "dependencies": {
+    "@firefly0621/dsh-remote-control": "workspace:^"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-api-remotes": "workspace:^",
     "@deepseek-ai/dsh-client-locale": "workspace:^",

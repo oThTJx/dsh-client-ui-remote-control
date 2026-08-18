@@ -1,5 +1,6 @@
 /** Remote-control pairing tab registered into Web Plugins settings. */
 
+import remoteControlRemote from '@firefly0621/dsh-remote-control/remote'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -22,11 +23,17 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'settings.remoteControl'
 
-/** Services required by the Settings registration and generated Remote face. */
-export const inject = ['slots', 'locale', 'remote', 'remote.remoteControl']
+/** Services required by the Settings registration and the generated Remote face. */
+export const inject = ['slots', 'locale', 'remote']
 
-/** Contribute the lazy remote-control tab to the Plugins settings section. */
-export function apply(ctx: ClientContext): void {
+/**
+ * Mount the plugin's own Remote namespace and contribute the lazy pairing tab
+ * to the Plugins settings section. The namespace mounts here rather than in
+ * the api-remotes assembly so the browser half works on every dsh family
+ * version without the official package depending on this plugin.
+ */
+export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
+  const unmount = await ctx.remote.$mount(remoteControlRemote)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-remote-control: dictionaries')
 
   const t = ctx.locale.bind(NS)
@@ -99,4 +106,6 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: injected,
   }, RemoteControlSettingsTab))
+
+  return unmount
 }

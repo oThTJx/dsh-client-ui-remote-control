@@ -11,7 +11,7 @@ import type {
   ResetIdentitySnapshot,
   RevokeSnapshot,
   SessionsSnapshot,
-} from '@deepseek-ai/dsh-api-remotes/client'
+} from '@firefly0621/dsh-remote-control/types'
 import { apply, inject, NS } from '../src/client/index.ts'
 import { RemoteControlSettingsTab } from '../src/client/RemoteControlSettingsTab.tsx'
 import type { RemoteControlSettingsTabInjected } from '../src/client/RemoteControlSettingsTab.tsx'
@@ -43,6 +43,7 @@ async function bench() {
     constructor(serviceCtx: Context) {
       super(serviceCtx, 'remote')
     }
+    $mount = vi.fn<() => Promise<() => Promise<void>>>().mockResolvedValue(async () => {})
   }
   new RemoteService(ctx)
   const pairing = vi.fn<() => Promise<RemoteResult<PairingSnapshot>>>()
@@ -66,7 +67,7 @@ function declare(slots: SlotRegistry): () => void {
 
 describe('ui-remote-control browser plugin', () => {
   it('declares only the services used by the pairing Remote contribution', () => {
-    expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.remoteControl'])
+    expect(inject).toEqual(['slots', 'locale', 'remote'])
   })
 
   it('registers a localized tab without reading the Remote eagerly', async () => {
