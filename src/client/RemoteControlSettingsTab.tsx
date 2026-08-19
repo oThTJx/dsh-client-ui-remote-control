@@ -26,7 +26,7 @@ export interface RemoteControlSettingsTabInjected {
   revoke: (sessionId: string) => Promise<RevokeSnapshot>
   /** Regenerate the device identity and drop every bound session. */
   resetIdentity: () => Promise<ResetIdentitySnapshot>
-  /** Persist and apply a new relay address; '' selects the embedded local relay. */
+  /** Persist and apply a new relay address; '' selects the local relay at 127.0.0.1:8787. */
   setRelayUrl: (url: string) => Promise<SetRelayUrlSnapshot>
 }
 
@@ -38,7 +38,7 @@ export type RemoteControlSettingsTabProps =
 
 type ViewState =
   | { readonly status: 'loading' }
-  | { readonly status: 'error' }
+  | { readonly status: 'error'; readonly actionFailed: boolean }
   | { readonly status: 'ready'; readonly pairing: PairingSnapshot; readonly sessions: SessionsSnapshot }
 
 /** One page tab projected from the component-local tab list. */
@@ -59,9 +59,9 @@ function statusLabel(status: PairingSnapshot['status'], t: RemoteControlSettings
   return t(STATUS_KEYS[status])
 }
 
-/** Format an epoch ms as a localized date-time string. */
-function formatTime(epochMs: number, locale: string): string {
-  return new Date(epochMs).toLocaleString(locale)
+/** Format an epoch ms as a locale-aware date-time string. */
+function formatTime(epochMs: number): string {
+  return new Date(epochMs).toLocaleString()
 }
 
 /** Render the remote-control pairing page: pairing tab + paired-devices tab. */
@@ -80,18 +80,23 @@ export function RemoteControlSettingsTab({
   const [activeTab, setActiveTab] = useState<PageTab['id']>('pairing')
   const tabsId = useId()
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  /** Monotonic reload id: stale async reads must not overwrite newer state. */
+  const reloadSeq = useRef(0)
   const tabs: readonly PageTab[] = [
     { id: 'pairing', label: t('pairingTab') },
     { id: 'devices', label: t('devicesTab') },
   ]
 
   const reload = (): void => {
+    const seq = ++reloadSeq.current
     setState({ status: 'loading' })
     // A failing sessions read (e.g. the relay is unreachable) must not hide the
     // pairing status and address config; the device list degrades to empty.
     void Promise.allSettled([pairing(), sessions()]).then(([pairingResult, sessionsResult]) => {
+      if (seq !== reloadSeq.current) return
       if (pairingResult.status === 'rejected') {
-        setState({ status: 'error' })
+        console.error('remoteControl.pairing failed', pairingResult.reason)
+        setState({ status: 'error', actionFailed: false })
         return
       }
       setState({
@@ -105,24 +110,39 @@ export function RemoteControlSettingsTab({
 
   useEffect(reload, [pairing, sessions])
 
+  // The host dials out asynchronously and never pushes the outcome; keep
+  // re-reading while 'connecting' so the minted code (or the failure) appears.
+  const pairingStatus = state.status === 'ready' ? state.pairing.status : null
+  useEffect(() => {
+    if (pairingStatus !== 'connecting') return
+    const timer = setInterval(reload, 1_000)
+    return () => { clearInterval(timer) }
+  }, [pairingStatus])
+
+  /** Write actions share one failure path: log the reason, show an action error. */
+  const failAction = (reason: unknown): void => {
+    console.error('remoteControl action failed', reason)
+    setState({ status: 'error', actionFailed: true })
+  }
+
   // The one connection control: persisting the draft address first (the host
   // reconnects automatically when already active), then dialing out.
   const onConnect = (): void => {
-    void setRelayUrl(addressDraft.trim()).then(connect).then(reload, () => { setState({ status: 'error' }) })
+    void setRelayUrl(addressDraft.trim()).then(connect).then(reload, failAction)
   }
 
   const onDisconnect = (): void => {
-    void disconnect().then(reload, () => { setState({ status: 'error' }) })
+    void disconnect().then(reload, failAction)
   }
 
   const onRevoke = (sessionId: string): void => {
     if (!globalThis.confirm(t('revokeConfirm'))) return
-    void revoke(sessionId).then(reload, () => { setState({ status: 'error' }) })
+    void revoke(sessionId).then(reload, failAction)
   }
 
   const onReset = (): void => {
     if (!globalThis.confirm(t('resetConfirm'))) return
-    void resetIdentity().then(reload, () => { setState({ status: 'error' }) })
+    void resetIdentity().then(reload, failAction)
   }
 
   const onTabKeyDown = (index: number) => (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -147,7 +167,7 @@ export function RemoteControlSettingsTab({
       {state.status === 'loading' ? <p className={css.status}>{t('loading')}</p> : null}
       {state.status === 'error' ? (
         <div className={css.failure}>
-          <p role="alert">{t('error')}</p>
+          <p role="alert">{state.actionFailed ? t('actionError') : t('error')}</p>
           <button type="button" onClick={reload}>{t('retry')}</button>
         </div>
       ) : null}
@@ -215,10 +235,10 @@ export function RemoteControlSettingsTab({
                 />
               ) : null}
               {state.pairing.code !== undefined ? (
-                <p className={css.code} data-remote-code>{state.pairing.code}</p>
+                <p className={css.code} aria-label={`${t('codeLabel')}: ${state.pairing.code}`} data-remote-code>{state.pairing.code}</p>
               ) : null}
               {state.pairing.expiresAt !== undefined ? (
-                <p className={css.meta}>{t('codeExpires')} {formatTime(state.pairing.expiresAt, 'zh-CN')}</p>
+                <p className={css.meta}>{t('codeExpires')} {formatTime(state.pairing.expiresAt)}</p>
               ) : null}
               {state.pairing.status === 'pairing' ? (
                 <button type="button" onClick={reload}>{t('refresh')}</button>
@@ -236,12 +256,12 @@ export function RemoteControlSettingsTab({
               <button type="button" className={css.reset} onClick={onReset}>{t('reset')}</button>
               {state.sessions.sessions.length === 0 ? <p className={css.status}>{t('devicesEmpty')}</p> : null}
               {state.sessions.sessions.length > 0 ? (
-                <ul className={css.deviceList}>
+                <ul className={css.deviceList} aria-label={t('devices')}>
                   {state.sessions.sessions.map(session => (
                     <li className={css.deviceRow} key={session.sessionId}>
                       <span data-device-name>{session.deviceName}</span>
                       <span className={css.meta}>
-                        {t('deviceSince')} {formatTime(session.createdAt, 'zh-CN')}
+                        {t('deviceSince')} {formatTime(session.createdAt)}
                       </span>
                       <button
                         type="button"

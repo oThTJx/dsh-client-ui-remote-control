@@ -126,6 +126,17 @@ describe('RemoteControlSettingsTab', () => {
     expect(screen.queryByText('654321')).toBeNull()
   })
 
+  it('polls while connecting until the minted pairing code appears', async () => {
+    const p = props({ pairing: { status: 'connecting', relayUrl: 'ws://relay.example.com' } })
+    ;(p.pairing as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ status: 'connecting', relayUrl: 'ws://relay.example.com' })
+      .mockResolvedValue({ status: 'pairing', relayUrl: 'ws://relay.example.com', code: '654321', expiresAt: 1_000_000 })
+    render(<RemoteControlSettingsTab {...p} />)
+    expect(await screen.findByText('connecting')).toBeTruthy()
+    // The host dials out asynchronously; the panel must re-read until the code lands.
+    await vi.waitFor(() => { expect(screen.getByText('654321')).toBeTruthy() }, { timeout: 3_000 })
+  })
+
   it('disconnects through the face when paired', async () => {
     const p = props()
     render(<RemoteControlSettingsTab {...p} />)
